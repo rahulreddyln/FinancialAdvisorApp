@@ -15,15 +15,10 @@ This is a Flask-based financial advisor system that recommends stocks, mutual fu
 
 
 pip install -r requirements.txt
-Add your OpenAI API key:
-
-Open app.py.
-
-Replace "YOUR_OPENAI_API_KEY" with your actual OpenAI API key.
-
+python setup_db.py
+pip install -r requirements.txt
 python app.py
-
-http://127.0.0.1:5000/
+Go to: http://127.0.0.1:5000/
 
 
 
