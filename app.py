@@ -1,30 +1,51 @@
 from flask import Flask, render_template, request
 import pandas as pd
+import numpy as np
+import sqlite3
 import os
 import joblib
 from sklearn.ensemble import RandomForestRegressor
-import openai
-
-# Set your OpenAI API key here
-openai.api_key = "YOUR_OPENAI_API_KEY"
+from transformers import pipeline
 
 app = Flask(__name__)
-
-# Load datasets from CSV
 data_dir = os.path.join(os.path.dirname(__file__), 'data')
-stocks_df = pd.read_csv(os.path.join(data_dir, 'stocks.csv'))
-mutual_funds_df = pd.read_csv(os.path.join(data_dir, 'mutual_funds.csv'))
 
-# Train and save stock model if not already trained
-stock_model_path = os.path.join(data_dir, 'stock_model.pkl')
-if not os.path.exists(stock_model_path):
+# Load zero-shot classifier
+classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+
+def classify_investment_goal(prompt):
+    labels = ["growth", "balanced", "conservative"]
+    try:
+        result = classifier(prompt, candidate_labels=labels)
+        return result["labels"][0]
+    except Exception as e:
+        print("LLM fallback:", e)
+        return "balanced"
+
+def get_db_connection():
+    conn = sqlite3.connect(os.path.join(data_dir, 'finance.db'))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def load_data_from_db():
+    conn = get_db_connection()
+    stocks_df = pd.read_sql_query("SELECT * FROM stocks", conn)
+    mutual_funds_df = pd.read_sql_query("SELECT * FROM mutual_funds", conn)
+    conn.close()
+    return stocks_df, mutual_funds_df
+
+# Load data and model
+stocks_df, mutual_funds_df = load_data_from_db()
+model_path = os.path.join(data_dir, 'stock_model.pkl')
+
+if not os.path.exists(model_path):
     X = stocks_df[['volatility']]
     y = stocks_df['expected_return']
-    stock_model = RandomForestRegressor(n_estimators=100, random_state=42)
-    stock_model.fit(X, y)
-    joblib.dump(stock_model, stock_model_path)
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X, y)
+    joblib.dump(model, model_path)
 else:
-    stock_model = joblib.load(stock_model_path)
+    model = joblib.load(model_path)
 
 def recommend_stocks(df, model, top_n=3):
     df = df.copy()
@@ -34,43 +55,23 @@ def recommend_stocks(df, model, top_n=3):
 
 def recommend_mutual_funds(df, risk_level='low', age=None, income=None, savings=None):
     df = df.copy()
-
     if age is not None:
         if age < 35:
-            adjusted_risk = 'high'
+            risk_level = 'high'
         elif age < 50:
-            adjusted_risk = 'medium'
+            risk_level = 'medium'
         else:
-            adjusted_risk = 'low'
-    else:
-        adjusted_risk = risk_level
+            risk_level = 'low'
 
-    if adjusted_risk == 'low':
+    if risk_level == 'low':
         df = df[df['risk'] <= 3]
-    elif adjusted_risk == 'medium':
+    elif risk_level == 'medium':
         df = df[(df['risk'] > 3) & (df['risk'] <= 6)]
     else:
         df = df[df['risk'] > 6]
 
     df = df.sort_values(by='return', ascending=False)
     return df[['name', 'risk', 'return', 'previous_year_return']].head(3)
-
-def classify_investment_goal(prompt):
-    system_prompt = (
-        "You are a financial assistant. Classify the user's goal into one of: 'growth', 'balanced', or 'conservative'."
-    )
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response.choices[0].message['content'].strip().lower()
-    except Exception as e:
-        print("LLM fallback due to:", e)
-        return "balanced"
 
 def retirement_plan(age, income, budget, risk_level):
     retirement_age = 60
@@ -92,16 +93,15 @@ def home():
 
         goal_type = classify_investment_goal(goal_text)
 
-        stock_recs = recommend_stocks(stocks_df.copy(), stock_model)
+        stock_recs = recommend_stocks(stocks_df.copy(), model)
         fund_recs = recommend_mutual_funds(mutual_funds_df.copy(), risk_level=risk, age=age, income=income, savings=budget)
         retirement = retirement_plan(age, income, budget, risk)
 
-        return render_template('result.html', 
-                               stocks=stock_recs.to_dict('records'), 
-                               funds=fund_recs.to_dict('records'), 
-                               retirement=retirement, 
+        return render_template('result.html',
+                               stocks=stock_recs.to_dict('records'),
+                               funds=fund_recs.to_dict('records'),
+                               retirement=retirement,
                                goal=goal_type)
-
     return render_template('form.html')
 
 if __name__ == '__main__':
