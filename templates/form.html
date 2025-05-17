@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Financial Advisor - Input</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        label { display: block; margin-top: 1rem; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 0.5rem; margin-top: 0.3rem; }
+        button { margin-top: 1.5rem; padding: 0.7rem 1.5rem; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .container { max-width: 500px; margin: auto; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Financial Advisor Input Form</h1>
+    <form method="post" action="/">
+        <label for="age">Age:</label>
+        <input type="number" id="age" name="age" min="18" max="100" required />
+
+        <label for="income">Monthly Income (USD):</label>
+        <input type="number" id="income" name="income" min="0" step="0.01" required />
+
+        <label for="budget">Monthly Savings Budget (USD):</label>
+        <input type="number" id="budget" name="budget" min="0" step="0.01" required />
+
+        <label for="risk">Risk Level Preference:</label>
+        <select id="risk" name="risk" required>
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+        </select>
+
+        <label for="goal">Describe your investment goal:</label>
+        <textarea id="goal" name="goal" rows="3" placeholder="E.g., Save for home, build wealth over time, safe retirement..." required></textarea>
+
+        <button type="submit">Get Recommendations</button>
+    </form>
+</div>
+</body>
+</html>
+
